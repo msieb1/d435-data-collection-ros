@@ -12,15 +12,14 @@
 ##### Sorted by experiments and depth, audio, video are subfolders #####
 dataset=$1  # Name of the dataset.
 seqname=$2
-mode=demo  # E.g. 'train', 'validation', 'test', 'demo'.
+mode=train  # E.g. 'train', 'validation', 'test', 'demo'.
 num_views=1 # Number of webcams.
-expdir=/media/zhouxian/ed854110-6801-4dcd-9acf-c4f904955d71/cvpr2019/video_data
+expdir=/media/zhouxian/ed854110-6801-4dcd-9acf-c4f904955d71/iccv2019/demos
 viddir=videos # Output directory for the videos.
 depthdir=depth
-auddir=audio # Output directory for the videos.
 tmp_imagedir=/home/zhouxian/projects/experiments/tmp
 # Temp directory to hold images.
-debug_vids=1 # Whether or not to generate side-by-side debug videos.
+debug_vids=True # Whether or not to generate side-by-side debug videos.
 # seqname=pushing
 
 export DISPLAY=:0.0  # This allows real time matplotlib display.
@@ -34,8 +33,7 @@ python src/d435_ros_video.py \
 --tmp_imagedir $tmp_imagedir \
 --viddir $viddir \
 --depthdir $depthdir \
---auddir $auddir \
---debug_vids 1 \
+--debug_vids $debug_vids \
 --expdir $expdir \
 --seqname $seqname
 # --seqname $seqname 

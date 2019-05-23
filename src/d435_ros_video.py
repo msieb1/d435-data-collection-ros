@@ -87,7 +87,7 @@ GLOBAL_DEPTH_RAW_BUFFER = []
 # args = parser.parse_args()
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', default='training_2', help='Name of the dataset we`re collecting.')
-parser.add_argument('--mode', default='train',help='What type of data we`re collecting. E.g.:'
+parser.add_argument('--mode', default='',help='What type of data we`re collecting. E.g.:'
                        '`train`,`valid`,`test`, or `demo`')
 parser.add_argument('--seqname', default='',help='Name of this sequence. If empty, the script will use'
                        'the name seq_N+1 where seq_N is the latest'
@@ -101,8 +101,6 @@ parser.add_argument('--viddir', default='/tmp/tcn/videos',
                        help='Base directory to write videos.')
 parser.add_argument('--depthdir', default='/tmp/tcn/depth',
                        help='Base directory to write depth.')
-parser.add_argument('--auddir', default='/tmp/tcn/audio',
-                       help='Base directory to write audio.')
 parser.add_argument('--debug_vids', default=False,
                         help='Whether to generate debug vids with multiple concatenated views.')
 parser.add_argument('--debug_lhs_view', default='1',
@@ -115,9 +113,8 @@ parser.add_argument('--width', default=1920, help='Raw input width.')
 #                        'Comma-separated list of each webcam usb port.')
 parser.add_argument('--webcam_ports', default='2,5,8',help='Comma-separated list of each webcam usb port.')
 args = parser.parse_args()
+args.mode=''
 FPS = 25.0
-AUDIO_OFFSET = 0.6
-MAIN_AUDIO = []
 
 class ImageQueue(object):
   """An image queue holding each stream's most recent image.
@@ -157,7 +154,6 @@ def timer(start, end):
 def setup_paths():
   """Sets up the necessary paths to collect videos."""
   assert args.dataset
-  assert args.mode
   assert args.num_views
   assert args.expdir
 
@@ -194,36 +190,45 @@ def setup_paths():
 def setup_paths_w_depth():
   """Sets up the necessary paths to collect videos."""
   assert args.dataset
-  assert args.mode
+  # assert args.mode
   assert args.num_views
   assert args.expdir
-  assert args.auddir
 
   # Setup directory for final images used to create videos for this sequence.
-  tmp_imagedir = os.path.join(args.tmp_imagedir, args.dataset, args.mode)
+  if args.mode == '':
+    tmp_imagedir = os.path.join(args.tmp_imagedir, args.dataset)
+  else:
+    tmp_imagedir = os.path.join(args.tmp_imagedir, args.dataset, args.mode)
+
   if not os.path.exists(tmp_imagedir):
     os.makedirs(tmp_imagedir)
-  tmp_depthdir = os.path.join(args.tmp_imagedir,  args.dataset, 'depth', args.mode)
+  if args.mode == '':
+    tmp_depthdir = os.path.join(args.tmp_imagedir,  args.dataset, 'depth', args.mode)
+  else:
+    tmp_depthdir = os.path.join(args.tmp_imagedir,  args.dataset, 'depth', args.mode)
+
   if not os.path.exists(tmp_depthdir):
     os.makedirs(tmp_depthdir)
   # Create a base directory to hold all sequence videos if it doesn't exist.
-  vidbase = os.path.join(args.expdir, args.dataset, args.viddir, args.mode)
+  if args.mode == '':
+    vidbase = os.path.join(args.expdir, args.dataset, args.viddir)
+  else:
+    vidbase = os.path.join(args.expdir, args.dataset, args.viddir, args.mode)
+
   if not os.path.exists(vidbase):
     os.makedirs(vidbase)
 
     # Setup depth directory
-  depthbase = os.path.join(args.expdir, args.dataset, args.depthdir, args.mode)
+  if args.mode == '':
+    depthbase = os.path.join(args.expdir, args.dataset, args.depthdir)
+  else:
+    depthbase = os.path.join(args.expdir, args.dataset, args.depthdir, args.mode)
+
   if not os.path.exists(depthbase):
     os.makedirs(depthbase)
   # Get one directory per concurrent view and a sequence name.
   view_dirs, seqname = get_view_dirs(vidbase, tmp_imagedir)
   view_dirs_depth = get_view_dirs_depth(vidbase, tmp_depthdir)
-
-  # Setup audio directory
-  audbase = os.path.join(args.expdir, args.dataset, args.auddir, args.mode)
-  if not os.path.exists(audbase):
-    os.makedirs(audbase)
-  audio_path = os.path.join(audbase, seqname)
 
   # Get an output path to each view's video.
   vid_paths = []
@@ -238,14 +243,16 @@ def setup_paths_w_depth():
   # Optionally build paths to debug_videos.
   debug_path = None
   if args.debug_vids:
-    debug_base = os.path.join(args.expdir, args.dataset, '%s_debug' % args.viddir, 
-                              args.mode)
+    if args.mode == '':
+      debug_base = os.path.join(args.expdir, args.dataset, '%s_debug' % args.viddir)
+    else:
+      debug_base = os.path.join(args.expdir, args.dataset, '%s_debug' % args.viddir, args.mode)
     if not os.path.exists(debug_base):
       os.makedirs(debug_base)
     debug_path = '%s/%s.mp4' % (debug_base, seqname)
     debug_path_depth = '%s/%s_depth.mp4' % (debug_base, seqname)
 
-  return view_dirs, vid_paths, debug_path, seqname, view_dirs_depth, depth_paths, debug_path_depth, audio_path
+  return view_dirs, vid_paths, debug_path, seqname, view_dirs_depth, depth_paths, debug_path_depth
 
 def get_view_dirs(vidbase, tmp_imagedir):
   """Creates and returns one view directory per webcam."""
@@ -273,7 +280,7 @@ def get_view_dirs(vidbase, tmp_imagedir):
 def get_view_dirs_depth(depthbase, tmp_depthdir):
   """Creates and returns one view directory per webcam."""
   # Create and append a sequence name.
-  if args.seqname:
+  if args.seqname != -1:
     seqname = args.seqname
   else:
     # If there's no video directory, this is the first sequence.
@@ -293,7 +300,7 @@ def get_view_dirs_depth(depthbase, tmp_depthdir):
   return view_dirs_depth
 
 
-def collect_images_parallel(device_ids, audio_path):
+def collect_images_parallel(device_ids):
 
   topic_img_list = ['/camera' + device_id + '/color/image_raw' for device_id in device_ids]
   topic_depth_list = ['/camera' + device_id + '/aligned_depth_to_color/image_raw' for device_id in device_ids]
@@ -407,14 +414,6 @@ def save_tf_frame_values(view_idx, seqname, device_indices, tf_listener):
 def main():
   # Initialize the camera capture objects.
   # Get one output directory per view.
-  # Setup audio directory
-
-  audbase = os.path.join(args.expdir, args.dataset, args.auddir, args.mode)
-  if not os.path.exists(audbase):
-    os.makedirs(audbase)
-  audio_path_main = os.path.join(audbase, 'main')
-  if os.path.exists(audio_path_main + '.txt'):
-    os.remove(audio_path_main + '.txt')
   rospy.init_node("data_collection", disable_signals=True)
   try:
     tf_listener = tf.TransformListener()
@@ -428,14 +427,14 @@ def main():
     #device_indices = ['1', '2']
     device_indices = ['2']
 
-    collect_images_parallel(device_indices, audio_path_main)
+    collect_images_parallel(device_indices)
 
   except KeyboardInterrupt:
     print("Make videos..")
     assert len(GLOBAL_DEPTH_BUFFER) == len(GLOBAL_IMAGE_BUFFER)
 
 
-    view_dirs, vid_paths, debug_path, seqname, view_dirs_depth, depth_paths, debug_path_depth, audio_path = setup_paths_w_depth()
+    view_dirs, vid_paths, debug_path, seqname, view_dirs_depth, depth_paths, debug_path_depth = setup_paths_w_depth()
     # Save baxter joint values
     save_baxter_values(limb='right', seqname=seqname)
     for view_idx in range(len(device_indices)):

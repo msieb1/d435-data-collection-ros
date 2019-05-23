@@ -97,8 +97,7 @@ parser.add_argument('--viddir', default='/tmp/tcn/videos',
                        help='Base directory to write videos.')
 parser.add_argument('--depthdir', default='/tmp/tcn/depth',
                        help='Base directory to write depth.')
-parser.add_argument('--auddir', default='/tmp/tcn/audio',
-                       help='Base directory to write audio.')
+
 parser.add_argument('--debug_vids', default=False,
                         help='Whether to generate debug vids with multiple concatenated views.')
 parser.add_argument('--debug_lhs_view', default='1',
@@ -112,8 +111,7 @@ parser.add_argument('--width', default=1920, help='Raw input width.')
 parser.add_argument('--webcam_ports', default='2,5,8',help='Comma-separated list of each webcam usb port.')
 args = parser.parse_args()
 FPS = 25.0
-AUDIO_OFFSET = 0.6
-MAIN_AUDIO = []
+
 
 class ImageQueue(object):
   """An image queue holding each stream's most recent image.
@@ -194,10 +192,9 @@ def setup_paths_w_depth():
   assert args.mode
   assert args.num_views
   assert args.expdir
-  assert args.auddir
 
   # Setup directory for final images used to create videos for this sequence.
-  tmp_imagedir = os.path.join(args.tmp_imagedir, args.dataset, args.mode)
+  tmp_imagedir = os.path.join(args.tmp_imagedir, args.dataset)
   if not os.path.exists(tmp_imagedir):
     os.makedirs(tmp_imagedir)
   tmp_depthdir = os.path.join(args.tmp_imagedir,  args.dataset, 'depth', args.mode)
@@ -215,12 +212,6 @@ def setup_paths_w_depth():
   # Get one directory per concurrent view and a sequence name.
   view_dirs, seqname = get_view_dirs(vidbase, tmp_imagedir)
   view_dirs_depth = get_view_dirs_depth(vidbase, tmp_depthdir)
-
-  # Setup audio directory
-  audbase = os.path.join(args.expdir, args.dataset, args.auddir, args.mode)
-  if not os.path.exists(audbase):
-    os.makedirs(audbase)
-  audio_path = os.path.join(audbase, seqname)
 
   # Get an output path to each view's video.
   vid_paths = []
@@ -242,7 +233,7 @@ def setup_paths_w_depth():
     debug_path = '%s/%s.mp4' % (debug_base, seqname)
     debug_path_depth = '%s/%s_depth.mp4' % (debug_base, seqname)
 
-  return view_dirs, vid_paths, debug_path, seqname, view_dirs_depth, depth_paths, debug_path_depth, audio_path
+  return view_dirs, vid_paths, debug_path, seqname, view_dirs_depth, depth_paths, debug_path_depth
 
 def get_view_dirs(vidbase, tmp_imagedir):
   """Creates and returns one view directory per webcam."""
@@ -290,7 +281,7 @@ def get_view_dirs_depth(depthbase, tmp_depthdir):
   return view_dirs_depth
 
 
-def collect_n_pictures_parallel(device_ids, audio_path, num_pics):
+def collect_n_pictures_parallel(device_ids, num_pics):
 
   topic_img_list = ['/camera' + device_id + '/color/image_raw' for device_id in device_ids]
   topic_depth_list = ['/camera' + device_id + '/aligned_depth_to_color/image_raw' for device_id in device_ids]
@@ -371,13 +362,6 @@ def collect_n_pictures_parallel(device_ids, audio_path, num_pics):
 def main():
   # Initialize the camera capture objects.
   # Get one output directory per view.
-    # Setup audio directory
-  audbase = os.path.join(args.expdir, args.dataset, args.auddir, args.mode)
-  if not os.path.exists(audbase):
-    os.makedirs(audbase)
-  audio_path_main = os.path.join(audbase, 'main')
-  if os.path.exists(audio_path_main + '.txt'):
-    os.remove(audio_path_main + '.txt')
   rospy.init_node("data_collection", disable_signals=True)
   try: 
     ctx = rs.context()
@@ -388,7 +372,7 @@ def main():
     # device_indices = ['1', '2', '3']
     device_indices = ['2']
 
-    collect_n_pictures_parallel(device_indices, audio_path_main, args.num_pics)
+    collect_n_pictures_parallel(device_indices, args.num_pics)
   
   except KeyboardInterrupt:
     print("Make videos..")
@@ -396,7 +380,7 @@ def main():
 
 
 
-    view_dirs, vid_paths, debug_path, seqname, view_dirs_depth, depth_paths, debug_path_depth, audio_path = setup_paths_w_depth()
+    view_dirs, vid_paths, debug_path, seqname, view_dirs_depth, depth_paths, debug_path_depth = setup_paths_w_depth()
 
     for t in range(0, len(GLOBAL_DEPTH_BUFFER)):
       stacked_images = GLOBAL_IMAGE_BUFFER[t][0][:,:,::-1]
@@ -405,8 +389,8 @@ def main():
           os.makedirs(vid_paths[view_idx].strip('.mp4'))
         if not os.path.exists(depth_paths[view_idx].strip('.mp4')):
           os.makedirs(depth_paths[view_idx].strip('.mp4'))        
-        cv2.imwrite(os.path.join(vid_paths[view_idx].strip('.mp4'), '{0:05d}.jpg'.format(t)), GLOBAL_IMAGE_BUFFER[t][view_idx][:,:,::-1])
-        cv2.imwrite(os.path.join(depth_paths[view_idx].strip('.mp4'), '{0:05d}.jpg'.format(t)), GLOBAL_DEPTH_BUFFER[t][view_idx].astype(np.uint8))
+        cv2.imwrite(os.path.join(vid_paths[view_idx].strip('.mp4'), '{0:05d}.png'.format(t)), GLOBAL_IMAGE_BUFFER[t][view_idx][:,:,::-1])
+        cv2.imwrite(os.path.join(depth_paths[view_idx].strip('.mp4'), '{0:05d}.png'.format(t)), GLOBAL_DEPTH_BUFFER[t][view_idx].astype(np.uint8))
 
     for p, q in zip(vid_paths, depth_paths):
       print('Writing final color picture to: %s' % p.strip('.mp4'))

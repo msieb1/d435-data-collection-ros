@@ -21,8 +21,7 @@ num_views=1 # Number of webcams.
 expdir=/media/zhouxian/ed854110-6801-4dcd-9acf-c4f904955d71/imitation_learning
 viddir=videos # Output directory for the videos.
 depthdir=depth
-auddir=audio # Output directory for the videos.
-tmp_imagedir=/media/zhouxian/ed854110-6801-4dcd-9acf-c4f904955d71/imitation_learning
+tmp_imagedir=/media/zhouxian/ed854110-6801-4dcd-9acf-c4f904955d71/tmp
 num_pics=$3
 # Temp directory to hold images.
 debug_vids=1 # Whether or not to generate side-by-side debug videos.
@@ -39,7 +38,6 @@ python src/d435_ros_picture.py \
 --num_pics $num_pics \
 --viddir $viddir \
 --depthdir $depthdir \
---auddir $auddir \
 --debug_vids 1 \
 --seqname $seqname \
 --expdir $expdir
